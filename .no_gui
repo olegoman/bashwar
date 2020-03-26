@@ -1,0 +1,12 @@
+#!/bin/bash
+
+no_gui_password(){
+	local password="";
+	read -s -p "$1" password;
+	echo "$password";
+}
+
+no_gui_notify(){ 
+	local message=$1;
+	echo "[$GUI_APP_NAME]: $message";
+}

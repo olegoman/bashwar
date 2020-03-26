@@ -1,0 +1,4 @@
+#!/bin/bash
+if [ "$(ps ax | grep '.alive' | grep -vc grep)" -lt 1 ]; then
+  sh $( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/.alive" $@ &
+fi

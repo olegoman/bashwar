@@ -1,0 +1,55 @@
+#!/bin/bash
+#source ./.sudo "$(dirname ${BASH_SOURCE[0]})/${BASH_SOURCE[0]}";
+#source ./.sudo;
+
+source ./.gui
+
+sudo_root_exec(){
+	sudo -S $@
+}
+
+sudo_su_root_exec(){
+	sudo su -l root -c $@
+}
+
+sudo_user_exec(){
+	sudo -u $(whoami) $@
+}
+
+run_as_root(){
+	if [[ "$EUID" != "0" ]]; then
+		local pass=$( gui_password "SUDO_SELF_MODE ($@) User password for $(whoami):" "System:Library:PreferencePanes:Security.prefPane:Contents:Resources:FileVault.icns" );
+		local current_uid=$( echo $pass | sudo -S id -u );
+		if [[ "$current_uid" == "0" ]]; then
+			echo $pass | sudo -S $@;
+			exit;
+		else
+			run_as_root $@;
+		fi
+	fi
+}
+
+cmd_as_root(){
+	if [[ "$EUID" != "0" && "$IS_AUTHORIZED" == "" ]]; then
+		local pass=$( gui_password "SUDO_RUN_MODE User password for $(whoami):" "System:Library:PreferencePanes:Security.prefPane:Contents:Resources:FileVault.icns" );
+		local current_uid=$( echo $pass | sudo -S id -u );
+		if [[ "$current_uid" == "0" ]]; then
+			IS_AUTHORIZED=1;
+			sudo_root_exec $@
+		else
+			cmd_as_root $@
+		fi
+	else
+		sudo_root_exec $@
+	fi
+}
+
+__sudo(){
+	if [[ "$@" != "" ]]; then
+			run_as_root $@;
+		else
+			cmd_as_root true;
+		fi
+}
+
+__sudo $@;

@@ -1,0 +1,36 @@
+#!/bin/bash
+CRYPTO_SALT='vagina';
+
+random(){
+	local rand="$( echo "$CRYPTO_SALT.$(openssl rand -base64 328509)" | shasum -a 512256 | cut -d" " -f1 )";
+	echo $rand;
+}
+
+sha_hash(){
+	case $1 in 
+		224|256|384|512|512224|512256) 
+			echo "$CRYPTO_SALT$2" | shasum -a $1 | cut -d" " -f1 
+		;;
+		*) : ;;
+	esac
+}
+
+trim() {
+	local string="$*";
+	string="${string#"${string%%[![:space:]]*}"}";
+	string="${string%"${string##*[![:space:]]}"}";
+	echo -n "$string";
+}
+
+file_size(){
+	echo $(trim $(wc -c < $@ ) );
+}
+
+user_switch(){
+	/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -switchToUserID $(id -u $1);
+}
+
+user_suspend(){ :
+	#pmset displaysleepnow;
+	#/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend
+}

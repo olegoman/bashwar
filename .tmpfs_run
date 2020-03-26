@@ -1,0 +1,14 @@
+#!/bin/bash
+source ./.tmpfs;
+
+__tmpfs_run(){
+    tmpfs_file=$( tmpfs_file_mount "$@" );
+    sh -c "$tmpfs_file" &
+    sleep 1;
+    echo $( tmpfs_file_dismount "$tmpfs_file" );
+}
+tmpfs_run(){
+    echo $( __tmpfs_run $@ );
+}
+
+([[ -n $ZSH_EVAL_CONTEXT && $ZSH_EVAL_CONTEXT =~ :file$ ]] || [[ -n $KSH_VERSION && $(cd "$(dirname -- "$0")" && printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] || [[ -n $BASH_VERSION ]] && (return 0 2>/dev/null)) && : || __tmpfs_run $@;

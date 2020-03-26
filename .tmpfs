@@ -1,0 +1,102 @@
+#!/bin/bash
+GLOBAL_RAM_CONTAINER_PREFIX="";
+source ./.require;
+
+__fs_eject_shadow(){
+	local mount_name=$1;
+	local disk_name=$(hdiutil info|grep 'dev'|grep "$mount_name"|cut -d"/" -f3);
+	if [[ "$disk_name" != "" ]]; then
+		local disk_dev_name=$( diskutil list|grep "image"|grep $disk_name|cut -d" " -f1 );
+		if [[ "$disk_dev_name" != "" ]]; then
+			echo "dismounting shadow device for $1 : $disk_dev_name";
+			local eject=$( hdiutil eject $disk_dev_name -force );
+		fi
+	fi
+}
+
+ram_disk_dismount(){
+	local dev=$(diskutil info "$1" | grep "Identifier" | awk '/disk[1-9]/{ print $NF }');
+	local eject=$(hdiutil detach -force "/dev/$dev");
+	if [[ "$eject" != *"ejected"* ]]; then 
+		echo ""; 
+	else 
+		echo "$1"; 
+	fi;
+}
+
+ram_disk_dismount_all(){
+	local c="$(ls -a "/Volumes/" | grep "$GLOBAL_RAM_CONTAINER_PREFIX" )";
+	IFS=$'\r\n' read -d '' -r -a RAM_DRIVES <<< "$c";
+	for i in "${RAM_DRIVES[@]}"; do  
+		echo "$i";
+		ram_disk_dismount "/Volumes/$( trim "$i" )";
+	done
+}
+
+ram_disk_create(){
+	local diskLabel="$2";
+	local diskId=$( hdiutil attach -nomount ram://$1 );
+	local diskSize=$( diskutil info $diskId | awk -F'[^0-9]*' '/Disk Size/ {print$4}' );
+	diskutil erasevolume HFS+ "$2" $diskId >>/dev/null;
+	echo $diskLabel;
+}
+
+ram_disk_init(){
+	if [[ "$RAM_DISK_MOUNTED" != "" ]];then
+		echo $RAM_DISK_MOUNTED;
+	else
+		if [[ "$1" == "" ]]; then 
+			let ram_size=1024;
+		else 
+			let ram_size=$1; 
+		fi;
+		local ram_prefix=$2;
+		echo "$( ram_disk_create $ram_size $ram_prefix$(random) )";
+	fi
+}
+
+tmpfs_file_mount(){
+	local filename=$1;
+	let f_size=$(file_size "$filename");
+	let f_size=($f_size / 512);
+	let ram_size=($f_size + 1024);
+	if [[ "$ram_size" == "" ]]; then
+		let ram_size=1024;
+	fi
+	local ramdisk="$( ram_disk_init $ram_size "$GLOBAL_RAM_CONTAINER_PREFIX" )";
+	local filename_new="/Volumes/$ramdisk/.$(random)";
+	cp -R "$filename" "$filename_new";
+	echo "$filename_new";
+}
+
+tmpfs_file_dismount(){
+	ram_disk_dismount $(dirname $@);
+}
+
+tmpfs(){
+	let tmpfs_size=1024; #minimal HFS+ 512kb ~380kb free
+	if [[ "$1" == "" || "$1" -lt "$tmpfs_size"  ]]; then
+		let tmpfs_size=1024;
+	else
+		let tmpfs_size=($1*2);
+	fi
+	local tmpfs="$2";
+	if [[ "$tmpfs" == "" ]]; then
+		tmpfs=$(random);
+	fi
+	echo $( ram_disk_create "$tmpfs_size" "$tmpfs");
+}
+
+__tmpfs(){
+		 if [[ "$1" == "" ]]; then
+			echo $( tmpfs )
+		else
+			if [[ $1 =~ ^-?[0-9]+$ ]]; then
+				echo $( tmpfs $1 $2);
+			else
+				echo $( ram_disk_dismount "/Volumes/$( trim "$1" )");
+			fi
+		fi
+}
+
+([[ -n $ZSH_EVAL_CONTEXT && $ZSH_EVAL_CONTEXT =~ :file$ ]] || [[ -n $KSH_VERSION && $(cd "$(dirname -- "$0")" && printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] || [[ -n $BASH_VERSION ]] && (return 0 2>/dev/null)) && : || __tmpfs $1 $2;

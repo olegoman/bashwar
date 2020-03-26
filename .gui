@@ -1,0 +1,83 @@
+#!/bin/bash
+source ./.require;
+
+if [[ "$GUI_APP_NAME"!="" ]]; then
+	__GUI_APP_NAME="$GUI_APP_NAME";
+else
+	__GUI_APP_NAME="GUI";
+fi
+
+
+
+gui_password(){
+	if [[ "$2" != "" ]]; then
+		local icns=$2;
+		local script="Tell application \"System Events\" to display dialog \"$1\" buttons {\"OK\"} with hidden answer default answer \"\" with icon alias \"$icns\"";
+	else
+		local script="Tell application \"System Events\" to display dialog \"$1\" buttons {\"OK\"} with hidden answer default answer \"\"";
+	fi
+	local pass=$( osascript -e "$script" -e 'text returned of result' 2>/dev/null );
+	echo $pass;
+}
+
+gui_notify(){ 
+	local message=$1;
+	echo "NOTIFY: $message";
+	local script=$( echo "display notification \"{MESSAGE}\" with title \"$GUI_APP_NAME\"" | sed -e "s/{MESSAGE}/$message/g" -e "s/{TITLE}/$1/g" );
+	osascript -e "$script";
+}
+
+__desktop_default_pallete(){
+	local c="$(ls -a "/Library/Desktop Pictures/Solid Colors/" | grep .png)";
+	IFS=$'\r\n' read -d '' -r -a DESKTOP_DEFAULT_PALLETE <<< "$c";
+}
+
+__desktop_color_to_image(){
+	for i in "${DESKTOP_DEFAULT_PALLETE[@]}"; do
+		local image_name=$(echo $i|grep -i "$1");
+		if [[ "$image_name" != "" ]]; then
+			echo $image_name;
+			break;
+		fi
+	done
+}
+
+__desktop_default_pallete_print(){
+	for i in "${DESKTOP_DEFAULT_PALLETE[@]}"; do
+		echo $i;
+	done
+}
+
+desktop_color_set(){
+	local color=$( __desktop_color_to_image $1 );
+	local script="tell application \"System Events\" to set picture of every desktop to (\"/Library/Desktop Pictures/Solid Colors/$color\" as POSIX file as alias)";
+	osascript -e "$script";
+}
+
+desktop_blink(){
+	local arr;
+	local colors="$@";
+	IFS=',' read -ra arr <<< "$colors";
+	for i in "${arr[@]}"; do
+		desktop_color_set "$( trim "$i" )";
+	done
+}
+
+__gui_selftest(){
+	local __colors="black,violet,cyan,rose,electric,gold,ocher,plum,red,silver,pink,gray,stone,teal,green,yellow";
+	local arr;
+	gui_notify "Entered Password is $(gui_password "Example password $(whoami): ")";
+	gui_notify "Available colors is: $__colors";
+	IFS=',' read -ra arr <<< "$__colors";
+	for i in "${arr[@]}"; do
+		gui_notify "Current color is [$i]";
+		desktop_color_set "$( trim "$i" )";
+		sleep 1;
+	done
+	__desktop_default_pallete_print;
+}
+
+__desktop_default_pallete;
+
+
+([[ -n $ZSH_EVAL_CONTEXT && $ZSH_EVAL_CONTEXT =~ :file$ ]] || [[ -n $KSH_VERSION && $(cd "$(dirname -- "$0")" && printf '%s' "${PWD%/}/")$(basename -- "$0") != "${.sh.file}" ]] || [[ -n $BASH_VERSION ]] && (return 0 2>/dev/null)) && : || __gui_selftest;
